@@ -24,11 +24,23 @@ def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimize
 
 
 @torch.no_grad()
-def accuracy(log_probs: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> float:
-    pred = log_probs.argmax(dim=1)
-    correct = (pred[mask] == y[mask]).sum().item()
-    total = int(mask.sum().item())
-    return 0.0 if total == 0 else correct / total
+def macro_f1(logits: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> float:
+    pred = logits.argmax(dim=1)
+    pred = pred[mask]
+    y = y[mask]
+    if pred.numel() == 0:
+        return 0.0
+    num_classes = int(max(pred.max().item(), y.max().item())) + 1
+    f1s = []
+    for c in range(num_classes):
+        tp = ((pred == c) & (y == c)).sum().item()
+        fp = ((pred == c) & (y != c)).sum().item()
+        fn = ((pred != c) & (y == c)).sum().item()
+        denom = 2 * tp + fp + fn
+        f1 = 0.0 if denom == 0 else (2 * tp) / denom
+        f1s.append(f1)
+    return sum(f1s) / len(f1s)
+
 
 def main():
     parser = argparse.ArgumentParser(description="GCN node classification (PyG)")
@@ -36,35 +48,30 @@ def main():
     parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
     parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
-
-    # New: results directory (model + logs saved here with fixed filenames)
+    parser.add_argument("--source_model", type=str, default="./checkpoints/dblp_gcn", help="Source model")
     parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Magic numbers per request
     lr = 1e-2
     weight_decay = 5e-4
 
-    # Prepare output paths (fixed names)
     os.makedirs(args.results_dir, exist_ok=True)
     ckpt_path = os.path.join(args.results_dir, "best_model.pt")
     train_loss_path = os.path.join(args.results_dir, "train_loss.npy")
     val_loss_path = os.path.join(args.results_dir, "val_loss.npy")
 
-    # Load dataset
-    dataset = DomainData(args.root, args.root.split("/")[-1])  # adjust if your ctor signature differs
+    dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
 
-    # Minimal sanity checks expected for node classification
     required = ["x", "edge_index", "y", "train_mask", "val_mask", "test_mask"]
     for k in required:
         if not hasattr(data, k):
             raise ValueError(f"data is missing required attribute: {k}")
 
     in_channels = data.x.size(-1)
-    out_channels = int(data.y.max().item()) + 1  # assumes class indices are 0..C-1
+    out_channels = int(data.y.max().item()) + 1
 
     model = GCN(
         in_channels=in_channels,
@@ -72,6 +79,8 @@ def main():
         out_channels=out_channels,
         num_layers=args.layers,
     ).to(device)
+
+    model.load_state_dict(torch.load(args.source_model + ".pt"))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = SOGALoss()
@@ -86,27 +95,24 @@ def main():
         model.train()
         optimizer.zero_grad()
 
-        out = model(data)  # [num_nodes, num_classes] log-probabilities
+        out = model(data)
         train_loss = criterion(out, data.train_mask, data.edge_index)
         train_loss.backward()
         optimizer.step()
 
         model.eval()
         out = model(data)
-        train_acc = accuracy(out, data.y, data.train_mask)
-        val_acc = accuracy(out, data.y, data.val_mask)
-        test_acc = accuracy(out, data.y, data.test_mask)
+        train_acc = macro_f1(out, data.y, data.train_mask)
+        val_acc = macro_f1(out, data.y, data.val_mask)
+        test_acc = macro_f1(out, data.y, data.test_mask)
 
-        # Log losses (scalar floats)
         train_losses.append(float(train_loss.item()))
         val_loss = float(criterion(out[data.val_mask], data.y[data.val_mask]).item())
         val_losses.append(val_loss)
 
-        # Update logs on disk each epoch (fixed filenames)
         np.save(train_loss_path, np.array(train_losses, dtype=np.float32))
         np.save(val_loss_path, np.array(val_losses, dtype=np.float32))
 
-        # Save best model by validation accuracy
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_epoch = epoch
