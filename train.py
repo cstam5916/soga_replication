@@ -48,12 +48,13 @@ def main():
     parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
     parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
+    parser.add_argument("--learning_rate", type=int, default=1e-3, help="Learning Rate")
+    parser.add_argument("--seed", type=int, default=0, help="Random Seed")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    lr = 1e-2
-    weight_decay = 5e-4
+    lr = args.learning_rate
 
     os.makedirs(args.results_dir, exist_ok=True)
     ckpt_path = os.path.join(args.results_dir, "best_model.pt")
@@ -62,6 +63,21 @@ def main():
 
     dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
+
+    # overwrite masks with random 4:1 train/val split
+    torch.manual_seed(args.seed)
+    num_nodes = data.y.size(0)
+    perm = torch.randperm(num_nodes)
+
+    train_size = int(0.8 * num_nodes)  # 4:1 ratio
+    train_idx = perm[:train_size]
+    val_idx = perm[train_size:]
+
+    data.train_mask = torch.zeros(num_nodes, dtype=torch.bool, device=device)
+    data.val_mask = torch.zeros(num_nodes, dtype=torch.bool, device=device)
+
+    data.train_mask[train_idx] = True
+    data.val_mask[val_idx] = True
 
     required = ["x", "edge_index", "y", "train_mask", "val_mask", "test_mask"]
     for k in required:
@@ -78,7 +94,7 @@ def main():
         num_layers=args.layers,
     ).to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
     best_val_acc = -1.0

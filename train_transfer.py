@@ -50,20 +50,42 @@ def main():
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
     parser.add_argument("--source_model", type=str, default="./checkpoints/dblp_gcn", help="Source model")
     parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
+    parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning Rate")
+    parser.add_argument("--seed", type=int, default=0, help="Random Seed")
+    parser.add_argument("--mode", type=str, default='SOGA', help='SOGA, IMOnly, or SCOnly')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    lr = 1e-2
+    lr = args.learning_rate
     weight_decay = 5e-4
 
-    os.makedirs(args.results_dir, exist_ok=True)
-    ckpt_path = os.path.join(args.results_dir, "best_model.pt")
-    train_loss_path = os.path.join(args.results_dir, "train_loss.npy")
-    val_loss_path = os.path.join(args.results_dir, "val_loss.npy")
+    results_dir = os.path.join(args.results_dir, args.mode, f'seed_{args.seed}')
+
+    os.makedirs(results_dir, exist_ok=True)
+    ckpt_path = os.path.join(results_dir, "best_model.pt")
+    train_loss_path = os.path.join(results_dir, "train_loss.npy")
+    val_loss_path = os.path.join(results_dir, "val_loss.npy")
+    val_acc_path = os.path.join(results_dir, "val_acc.npy")
+    pretrained_results_path = os.path.join(results_dir, "pretrained_results.txt")
 
     dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
+
+    # overwrite masks with random 4:1 train/val split
+    torch.manual_seed(args.seed)
+    num_nodes = data.y.size(0)
+    perm = torch.randperm(num_nodes)
+
+    train_size = int(0.8 * num_nodes)  # 4:1 ratio
+    train_idx = perm[:train_size]
+    val_idx = perm[train_size:]
+
+    data.train_mask = torch.zeros(num_nodes, dtype=torch.bool, device=device)
+    data.val_mask = torch.zeros(num_nodes, dtype=torch.bool, device=device)
+
+    data.train_mask[train_idx] = True
+    data.val_mask[val_idx] = True
 
     required = ["x", "edge_index", "y", "train_mask", "val_mask", "test_mask"]
     for k in required:
@@ -80,16 +102,37 @@ def main():
         num_layers=args.layers,
     ).to(device)
 
-    model.load_state_dict(torch.load(args.source_model + ".pt"))
+    model.load_state_dict(torch.load(os.path.join(args.source_model, "best_model.pt"))['model_state_dict'])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    criterion = SOGALoss()
+    criterion = SOGALoss(data, mode=args.mode).to(device)
+
+    model.eval()
+    out = model(data)
+    pretrained_train_loss = float(criterion(out, data.train_mask, data.edge_index).item())
+    pretrained_val_loss = float(criterion(out, data.val_mask, data.edge_index).item())
+    pretrained_train_acc = macro_f1(out, data.y, data.train_mask)
+    pretrained_val_acc = macro_f1(out, data.y, data.val_mask)
+    pretrained_test_acc = macro_f1(out, data.y, data.test_mask)
+
+    pretrained_results = (
+        f"Pretrained model evaluation\n"
+        f"train_loss: {pretrained_train_loss:.4f}\n"
+        f"val_loss: {pretrained_val_loss:.4f}\n"
+        f"train_f1: {pretrained_train_acc:.4f}\n"
+        f"val_f1: {pretrained_val_acc:.4f}\n"
+        f"test_f1: {pretrained_test_acc:.4f}\n"
+    )
+    print(pretrained_results, end="")
+    with open(pretrained_results_path, "w") as f:
+        f.write(pretrained_results)
 
     best_val_acc = -1.0
     best_epoch = -1
 
     train_losses = []
     val_losses = []
+    val_accs = []
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -107,11 +150,13 @@ def main():
         test_acc = macro_f1(out, data.y, data.test_mask)
 
         train_losses.append(float(train_loss.item()))
-        val_loss = float(criterion(out[data.val_mask], data.y[data.val_mask]).item())
+        val_loss = float(criterion(out, data.val_mask, data.edge_index).item())
         val_losses.append(val_loss)
+        val_accs.append(val_acc)
 
         np.save(train_loss_path, np.array(train_losses, dtype=np.float32))
         np.save(val_loss_path, np.array(val_losses, dtype=np.float32))
+        np.save(val_acc_path, np.array(val_accs, dtype=np.float32))
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
