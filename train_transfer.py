@@ -10,24 +10,22 @@ from DomainData import DomainData
 from losses import SOGALoss
 
 
-def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, val_acc: float):
+def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, acc: float):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     torch.save(
         {
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "epoch": epoch,
-            "val_acc": val_acc,
+            "acc": acc,
         },
         path,
     )
 
 
 @torch.no_grad()
-def macro_f1(logits: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> float:
+def macro_f1(logits: torch.Tensor, y: torch.Tensor) -> float:
     pred = logits.argmax(dim=1)
-    pred = pred[mask]
-    y = y[mask]
     if pred.numel() == 0:
         return 0.0
     num_classes = int(max(pred.max().item(), y.max().item())) + 1
@@ -46,9 +44,9 @@ def main():
     parser = argparse.ArgumentParser(description="GCN node classification (PyG)")
     parser.add_argument("--root", type=str, default="./data/acm", help="Dataset root/cache directory")
     parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
-    parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
+    # parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
-    parser.add_argument("--source_model", type=str, default="./checkpoints/dblp_gcn", help="Source model")
+    parser.add_argument("--source_model", type=str, default="./checkpoints/dblp_gcn_exact", help="Source model")
     parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
     parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning Rate")
     parser.add_argument("--seed", type=int, default=0, help="Random Seed")
@@ -64,30 +62,14 @@ def main():
 
     os.makedirs(results_dir, exist_ok=True)
     ckpt_path = os.path.join(results_dir, "best_model.pt")
-    train_loss_path = os.path.join(results_dir, "train_loss.npy")
-    val_loss_path = os.path.join(results_dir, "val_loss.npy")
-    val_acc_path = os.path.join(results_dir, "val_acc.npy")
+    loss_path = os.path.join(results_dir, "loss.npy")
+    acc_path = os.path.join(results_dir, "acc.npy")
     pretrained_results_path = os.path.join(results_dir, "pretrained_results.txt")
 
     dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
 
-    # overwrite masks with random 4:1 train/val split
-    torch.manual_seed(args.seed)
-    num_nodes = data.y.size(0)
-    perm = torch.randperm(num_nodes)
-
-    train_size = int(0.8 * num_nodes)  # 4:1 ratio
-    train_idx = perm[:train_size]
-    val_idx = perm[train_size:]
-
-    data.train_mask = torch.zeros(num_nodes, dtype=torch.bool, device=device)
-    data.val_mask = torch.zeros(num_nodes, dtype=torch.bool, device=device)
-
-    data.train_mask[train_idx] = True
-    data.val_mask[val_idx] = True
-
-    required = ["x", "edge_index", "y", "train_mask", "val_mask", "test_mask"]
+    required = ["x", "edge_index", "y"]
     for k in required:
         if not hasattr(data, k):
             raise ValueError(f"data is missing required attribute: {k}")
@@ -97,81 +79,69 @@ def main():
 
     model = GCN(
         in_channels=in_channels,
-        hidden_channels=args.hidden,
+        hidden_channels=[256, 128],
         out_channels=out_channels,
-        num_layers=args.layers,
     ).to(device)
+
+    
 
     model.load_state_dict(torch.load(os.path.join(args.source_model, "best_model.pt"))['model_state_dict'])
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SOGALoss(data, mode=args.mode).to(device)
 
     model.eval()
     out = model(data)
-    pretrained_train_loss = float(criterion(out, data.train_mask, data.edge_index).item())
-    pretrained_val_loss = float(criterion(out, data.val_mask, data.edge_index).item())
-    pretrained_train_acc = macro_f1(out, data.y, data.train_mask)
-    pretrained_val_acc = macro_f1(out, data.y, data.val_mask)
-    pretrained_test_acc = macro_f1(out, data.y, data.test_mask)
+    pretrained_loss = float(criterion(out, data.edge_index).item())
+    pretrained_acc = macro_f1(out, data.y)
 
     pretrained_results = (
         f"Pretrained model evaluation\n"
-        f"train_loss: {pretrained_train_loss:.4f}\n"
-        f"val_loss: {pretrained_val_loss:.4f}\n"
-        f"train_f1: {pretrained_train_acc:.4f}\n"
-        f"val_f1: {pretrained_val_acc:.4f}\n"
-        f"test_f1: {pretrained_test_acc:.4f}\n"
+        f"loss: {pretrained_loss:.4f}\n"
+        f"f1: {pretrained_acc:.4f}\n"
     )
     print(pretrained_results, end="")
     with open(pretrained_results_path, "w") as f:
         f.write(pretrained_results)
 
-    best_val_acc = -1.0
+    best_acc = -1.0
     best_epoch = -1
 
-    train_losses = []
-    val_losses = []
-    val_accs = []
+    losses = []
+    accs = []
 
     for epoch in range(1, args.epochs + 1):
         model.train()
         optimizer.zero_grad()
 
         out = model(data)
-        train_loss = criterion(out, data.train_mask, data.edge_index)
-        train_loss.backward()
+        loss = criterion(out, data.edge_index)
+        loss.backward()
         optimizer.step()
 
         model.eval()
         out = model(data)
-        train_acc = macro_f1(out, data.y, data.train_mask)
-        val_acc = macro_f1(out, data.y, data.val_mask)
-        test_acc = macro_f1(out, data.y, data.test_mask)
+        acc = macro_f1(out, data.y)
 
-        train_losses.append(float(train_loss.item()))
-        val_loss = float(criterion(out, data.val_mask, data.edge_index).item())
-        val_losses.append(val_loss)
-        val_accs.append(val_acc)
+        losses.append(float(loss.item()))
+        accs.append(acc)
 
-        np.save(train_loss_path, np.array(train_losses, dtype=np.float32))
-        np.save(val_loss_path, np.array(val_losses, dtype=np.float32))
-        np.save(val_acc_path, np.array(val_accs, dtype=np.float32))
+        np.save(loss_path, np.array(losses, dtype=np.float32))
+        np.save(acc_path, np.array(accs, dtype=np.float32))
 
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        if acc > best_acc:
+            best_acc = acc
             best_epoch = epoch
-            save_checkpoint(ckpt_path, model, optimizer, epoch, val_acc)
+            save_checkpoint(ckpt_path, model, optimizer, epoch, acc)
 
         if epoch == 1 or epoch % 10 == 0 or epoch == args.epochs:
             print(
-                f"Epoch {epoch:04d} | loss {train_loss.item():.4f} | "
-                f"train {train_acc:.4f} | val {val_acc:.4f} | test {test_acc:.4f} | "
-                f"best_val {best_val_acc:.4f} @ {best_epoch}"
+                f"Epoch {epoch:04d} | loss {loss.item():.4f} | "
+                f"f1 {acc:.4f} | best_f1 {best_acc:.4f} @ {best_epoch}"
             )
 
-    print(f"Done. Best checkpoint saved to: {ckpt_path} (best val_acc={best_val_acc:.4f} at epoch {best_epoch})")
-    print(f"Saved loss logs to: {train_loss_path} and {val_loss_path}")
+    print(f"Done. Best checkpoint saved to: {ckpt_path} (best f1={best_acc:.4f} at epoch {best_epoch})")
+    print(f"Saved logs to: {loss_path} and {acc_path}")
 
 
 if __name__ == "__main__":

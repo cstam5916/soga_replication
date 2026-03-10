@@ -64,12 +64,12 @@ class SOGALoss(nn.Module):
 
                 self.register_buffer("P_role", P_role)
 
-    def forward(self, logits, train_mask, edge_index):
+    def forward(self, logits, edge_index):
         im_loss = 0
         sc_loss = 0
 
         if(self.mode != 'SCOnly'):
-            log_q_cond = F.log_softmax(logits[train_mask], dim=1)
+            log_q_cond = F.log_softmax(logits, dim=1)
             q_cond = log_q_cond.exp()
             q_marg = q_cond.mean(dim=0)
             q_marg = q_marg / q_marg.sum()
@@ -81,7 +81,7 @@ class SOGALoss(nn.Module):
 
         if (self.mode != 'IMOnly'):
             probs = F.softmax(logits, dim=1)
-            sc_loss = self._structural_consistency_loss(probs, train_mask)
+            sc_loss = self._structural_consistency_loss(probs)
 
         return im_loss + sc_loss
 
@@ -91,17 +91,12 @@ class SOGALoss(nn.Module):
     def _marginal_entropy_loss(self, q_marg):
         return -(q_marg * q_marg.clamp_min(1e-12).log()).sum()
 
-    def _pairwise_bce_from_indicator(self, probs, P, mask):
+    def _pairwise_bce_from_indicator(self, probs, P):
         """
         probs: [N, C]
         P: [N, N] binary indicator matrix
-        mask: [N] bool
         """
-        idx = mask.nonzero(as_tuple=False).squeeze(1)
-        probs = probs[idx]              # [M, C]
-        P = P[idx][:, idx]              # [M, M]
-
-        inner = probs @ probs.T         # [M, M], all pairwise inner products
+        inner = probs @ probs.T         # [N, C], all pairwise inner products
         S = torch.sigmoid(inner).clamp(1e-12, 1 - 1e-12)
 
         # optional: exclude diagonal self-pairs
@@ -113,12 +108,12 @@ class SOGALoss(nn.Module):
         loss = -(P * torch.log(S) + (1 - P) * torch.log(1 - S)).mean()
         return loss
 
-    def _structural_consistency_loss(self, probs, train_mask):
-        local_loss = self._pairwise_bce_from_indicator(probs, self.P_local, train_mask)
+    def _structural_consistency_loss(self, probs):
+        local_loss = self._pairwise_bce_from_indicator(probs, self.P_local)
 
         if self.P_role.numel() == 0:
             return self.lambda_local * local_loss
 
-        role_loss = self._pairwise_bce_from_indicator(probs, self.P_role, train_mask)
+        role_loss = self._pairwise_bce_from_indicator(probs, self.P_role)
 
         return self.lambda_local * local_loss + self.lambda_role * role_loss

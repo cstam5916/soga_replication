@@ -44,7 +44,7 @@ def macro_f1(logits: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> float
 def main():
     parser = argparse.ArgumentParser(description="GCN node classification (PyG)")
     parser.add_argument("--root", type=str, default="./data/acm", help="Dataset root/cache directory")
-    parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
+    # parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
     parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
     parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
@@ -89,9 +89,8 @@ def main():
 
     model = GCN(
         in_channels=in_channels,
-        hidden_channels=args.hidden,
+        hidden_channels=[256, 128],
         out_channels=out_channels,
-        num_layers=args.layers,
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

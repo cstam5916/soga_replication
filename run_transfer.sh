@@ -7,17 +7,6 @@
 #SBATCH -o outLog
 #SBATCH -e errLog
 
-for seed in 0 1 2 3 4
-do
-    python -m train_transfer \
-        --results_dir "checkpoints/lr_exp_4" \
-        --epochs 250 \
-        --learning_rate 1e-4 \
-        --seed ${seed}
-
-    python -m train_transfer \
-        --results_dir "checkpoints/lr_exp_5" \
-        --epochs 250 \
-        --learning_rate 1e-5 \
-        --seed ${seed}
-done
+python train_transfer.py --root "./data/acm" --source_model "./checkpoints/acm_gcn_exact" --results_dir "checkpoints/dblp_to_acm_SOGA" --mode "SOGA"
+python train_transfer.py --root "./data/acm" --source_model "./checkpoints/acm_gcn_exact" --results_dir "checkpoints/dblp_to_acm_IMOnly" --mode "IMOnly"
+python train_transfer.py --root "./data/acm" --source_model "./checkpoints/acm_gcn_exact" --results_dir "checkpoints/dblp_to_acm_SCOnly" --mode "SCOnly"

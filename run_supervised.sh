@@ -8,4 +8,4 @@
 #SBATCH -e errLog
 
 # python -m train
-python -m train --root "data/dblp" --results_dir "checkpoints/dblp_gcn"
+python -m train --root "data/acm" --results_dir "checkpoints/acm_gcn_exact"
