@@ -23,45 +23,37 @@ class SOGALoss(nn.Module):
 
         if graph is not None:
             num_nodes = graph.num_nodes
+            # Total number of edges in the graph for kappa
+            num_edges = graph.edge_index.size(1)
 
-            # Local adjacency proxy
+            # 1. Local Adjacency (Local Neighbor Similarity)
             A = to_dense_adj(graph.edge_index, max_num_nodes=num_nodes).squeeze(0).float()
             A.fill_diagonal_(0)
+            # Ensure it is symmetric and binary
             A = ((A + A.T) > 0).float()
             self.register_buffer("P_local", A)
 
             if (self.mode != "IMOnly"):
                 G = to_networkx(graph, to_undirected=True)
-
-                r2v_model = Role2Vec(
-                    dimensions=64,
-                    walk_number=10,
-                    walk_length=80,
-                    workers=4,
-                    window_size=5,
-                    min_count=1,
-                    epochs=10,
-                )
+                r2v_model = Role2Vec(dimensions=64, walk_number=10, walk_length=80)
                 print("Fitting Role2Vec...")
                 r2v_model.fit(G)
                 emb = torch.tensor(r2v_model.get_embedding(), dtype=torch.float)
-
                 emb = F.normalize(emb, p=2, dim=1)
                 sim = emb @ emb.T
-                sim.fill_diagonal_(-float("inf"))
+                
+                mask = torch.triu(torch.ones_like(sim), diagonal=1).bool()
+                upper_sims = sim[mask]
+                
+                kappa = num_edges if role_k is None else role_k
+                kappa = min(kappa, upper_sims.numel())
 
-                if role_k is None:
-                    role_k = max(1, graph.edge_index.size(1) // num_nodes)
+                top_k_values, _ = torch.topk(upper_sims, k=kappa)
+                threshold = top_k_values[-1]
 
-                knn = sim.topk(k=min(role_k, num_nodes - 1), dim=1).indices
-                P_role = torch.zeros(num_nodes, num_nodes, dtype=torch.float)
-                rows = torch.arange(num_nodes).unsqueeze(1).expand_as(knn)
-                P_role[rows, knn] = 1.0
-
-                # symmetrize
-                P_role = ((P_role + P_role.T) > 0).float()
-                P_role.fill_diagonal_(0)
-
+                P_role = (sim >= threshold).float()
+                P_role.fill_diagonal_(0) # Remove self-loops
+                
                 self.register_buffer("P_role", P_role)
 
     def forward(self, logits, edge_index):

@@ -3,3 +3,4 @@ checkpoints
 deprecated_checkpoints
 *.ipynb
 bash
+GraphEmbedding
