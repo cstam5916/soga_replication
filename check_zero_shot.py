@@ -36,7 +36,7 @@ def main():
 
     model = GCN(
         in_channels=in_channels,
-        hidden_channels=[256, 128],
+        hidden_channels=[256, 256, 128],
         out_channels=out_channels,
     ).to(device)
     acm_state_dict = torch.load(os.path.join("checkpoints/acm_gcn_exact/best_model.pt"))['model_state_dict']

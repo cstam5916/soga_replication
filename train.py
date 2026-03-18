@@ -79,17 +79,12 @@ def main():
     data.train_mask[train_idx] = True
     data.val_mask[val_idx] = True
 
-    required = ["x", "edge_index", "y", "train_mask", "val_mask", "test_mask"]
-    for k in required:
-        if not hasattr(data, k):
-            raise ValueError(f"data is missing required attribute: {k}")
-
     in_channels = data.x.size(-1)
     out_channels = int(data.y.max().item()) + 1
 
     model = GCN(
         in_channels=in_channels,
-        hidden_channels=[256, 128],
+        hidden_channels=[256, 256, 128],
         out_channels=out_channels,
     ).to(device)
 
@@ -115,7 +110,6 @@ def main():
         out = model(data)
         train_acc = macro_f1(out, data.y, data.train_mask)
         val_acc = macro_f1(out, data.y, data.val_mask)
-        test_acc = macro_f1(out, data.y, data.test_mask)
 
         train_losses.append(float(train_loss.item()))
         val_loss = float(criterion(out[data.val_mask], data.y[data.val_mask]).item())
@@ -132,7 +126,7 @@ def main():
         if epoch == 1 or epoch % 10 == 0 or epoch == args.epochs:
             print(
                 f"Epoch {epoch:04d} | loss {train_loss.item():.4f} | "
-                f"train {train_acc:.4f} | val {val_acc:.4f} | test {test_acc:.4f} | "
+                f"train {train_acc:.4f} | val {val_acc:.4f} | "
                 f"best_val {best_val_acc:.4f} @ {best_epoch}"
             )
 

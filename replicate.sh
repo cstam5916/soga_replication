@@ -1,12 +1,8 @@
-#!/bin/bash
-##  Asking for 1 node, and 6 cores - the next line asks for 1 GPU
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH -p gpu
-#SBATCH --gres=gpu:4
-#SBATCH -o outLog
-#SBATCH -e errLog
+# Training source models
+python -m train --root "data/acm" --results_dir "checkpoints/acm_gcn"
+python -m train --root "data/dblp" --results_dir "checkpoints/dblp_gcn"
 
+# Training on domain adaptation objectives
 MODES=("SCOnly" "IMOnly" "SOGA")
 
 for MODE in "${MODES[@]}"; do
@@ -24,3 +20,5 @@ for MODE in "${MODES[@]}"; do
     --results_dir "./checkpoints/acm_to_dblp_${MODE}" \
     --mode "${MODE}"
 done
+
+# Generating visualizations
