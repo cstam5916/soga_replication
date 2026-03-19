@@ -4,4 +4,12 @@ deprecated_checkpoints
 *.ipynb
 bash
 GraphEmbedding
-plots/*
+results/acm_to_dblp*
+results/dblp_to_acm*
+results/best_accuracies*
+
+scripts/check_zero_shot.py
+
+__pycache__/
+*.py[cod]
+*$py.class

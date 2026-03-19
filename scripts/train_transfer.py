@@ -5,9 +5,9 @@ import numpy as np
 import torch
 from torch import nn
 
-from models import GCN
-from DomainData import DomainData
-from losses import SOGALoss
+from scripts.models import GCN
+from scripts.DomainData import DomainData
+from scripts.losses import SOGALoss
 
 
 def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, acc: float):
@@ -45,7 +45,7 @@ def main():
     parser.add_argument("--root", type=str, default="./data/acm", help="Dataset root/cache directory")
     parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
     # parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
-    parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
+    parser.add_argument("--epochs", type=int, default=100, help="Max training epochs")
     parser.add_argument("--source_model", type=str, default="./checkpoints/dblp_gcn_exact", help="Source model")
     parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
     parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning Rate")
@@ -79,7 +79,7 @@ def main():
 
     model = GCN(
         in_channels=in_channels,
-        hidden_channels=[256, 128],
+        hidden_channels=[256, 256, 128],
         out_channels=out_channels,
     ).to(device)
 

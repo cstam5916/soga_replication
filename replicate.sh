@@ -1,12 +1,12 @@
 # Training source models
-python -m train --root "data/acm" --results_dir "checkpoints/acm_gcn"
-python -m train --root "data/dblp" --results_dir "checkpoints/dblp_gcn"
+python -m scripts.train --root "data/acm" --results_dir "checkpoints/acm_gcn"
+python -m scripts.train --root "data/dblp" --results_dir "checkpoints/dblp_gcn"
 
 # Training on domain adaptation objectives
 MODES=("SCOnly" "IMOnly" "SOGA")
 
 for MODE in "${MODES[@]}"; do
-  python train_transfer.py \
+  python -m scripts.train_transfer \
     --root "./data/acm" \
     --source_model "./checkpoints/dblp_gcn" \
     --results_dir "./checkpoints/dblp_to_acm_${MODE}" \
@@ -14,7 +14,7 @@ for MODE in "${MODES[@]}"; do
 done
 
 for MODE in "${MODES[@]}"; do
-  python train_transfer.py \
+  python -m scripts.train_transfer \
     --root "./data/dblp" \
     --source_model "./checkpoints/acm_gcn" \
     --results_dir "./checkpoints/acm_to_dblp_${MODE}" \
@@ -22,4 +22,4 @@ for MODE in "${MODES[@]}"; do
 done
 
 # Generating visualizations
-python make_plots.py
+python -m scripts.make_plots

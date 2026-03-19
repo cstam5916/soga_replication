@@ -1,0 +1,6 @@
+dblp_to_acm | SOGA | best_acc: 0.635042
+dblp_to_acm | IMOnly | best_acc: 0.648773
+dblp_to_acm | SCOnly | best_acc: 0.623900
+acm_to_dblp | SOGA | best_acc: 0.942423
+acm_to_dblp | IMOnly | best_acc: 0.939516
+acm_to_dblp | SCOnly | best_acc: 0.833453

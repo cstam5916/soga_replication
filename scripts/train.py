@@ -5,8 +5,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from models import GCN
-from DomainData import DomainData
+from scripts.models import GCN
+from scripts.DomainData import DomainData
 
 
 def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, val_acc: float):
