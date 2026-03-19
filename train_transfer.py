@@ -58,7 +58,7 @@ def main():
     lr = args.learning_rate
     weight_decay = 5e-4
 
-    results_dir = os.path.join(args.results_dir, args.mode, f'seed_{args.seed}')
+    results_dir = os.path.join(args.results_dir)
 
     os.makedirs(results_dir, exist_ok=True)
     ckpt_path = os.path.join(results_dir, "best_model.pt")

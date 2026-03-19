@@ -22,3 +22,4 @@ for MODE in "${MODES[@]}"; do
 done
 
 # Generating visualizations
+python make_plots.py

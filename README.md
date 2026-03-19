@@ -11,11 +11,13 @@ pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -
 ```
 before installing the remaining requirements with
 ``` 
-pip install -r requirements.txt
+pip install -r requirements/requirements.txt --override requirements/override.txt
 ```
 If any additional problems with dependencies arise, we recommend using the [uv package manager](https://docs.astral.sh/uv/) for environment setup.
 
 ## Dataset Acquisition
+The datasets used in this projects are the preprocessed versions of the ACMv8 and DBLPv9 datasets from the paper [Unsupervised Domain Adaptive Graph Convolutional Networks](https://dl.acm.org/doi/pdf/10.1145/3366423.3380219) ([Github](https://github.com/TrustAGI-Lab/UDAGCN/tree/master)) and can be accessed at [this Google Drive link](https://drive.google.com/file/d/1DzQ3QN9yjQxU4vtYkXyCiJKFw7oCCPSM/view?usp=sharing). 
+
 
 ## Running Scripts
 A .sh file with the following scripts run in sequence is provided in `replicate.sh`.
