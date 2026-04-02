@@ -14,3 +14,5 @@ scripts/check_zero_shot.py
 __pycache__/
 *.py[cod]
 *$py.class
+
+local*

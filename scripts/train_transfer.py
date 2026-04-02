@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning Rate")
     parser.add_argument("--seed", type=int, default=0, help="Random Seed")
     parser.add_argument("--mode", type=str, default='SOGA', help='SOGA, IMOnly, or SCOnly')
+    parser.add_argument("--freeze_after", type=int, default=-1, help='layer to freeze weights after. default -1 <=> no freezing')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -77,17 +78,25 @@ def main():
     in_channels = data.x.size(-1)
     out_channels = int(data.y.max().item()) + 1
 
+    hidden_channels = [256, 256, 128]
     model = GCN(
         in_channels=in_channels,
         hidden_channels=[256, 256, 128],
         out_channels=out_channels,
     ).to(device)
 
-    
+    if(args.freeze_after > -1):
+        for param in model.linear.parameters():
+            param.requires_grad = False
+        for conv_idx in range(args.freeze_after):
+            for param in model.convs[conv_idx].parameters():
+                param.requires_grad = False
 
     model.load_state_dict(torch.load(os.path.join(args.source_model, "best_model.pt"))['model_state_dict'])
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.Adam(trainable_params, lr=lr)
+
     criterion = SOGALoss(data, mode=args.mode).to(device)
 
     model.eval()
