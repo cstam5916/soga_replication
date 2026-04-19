@@ -47,19 +47,22 @@ def main():
     # parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
     parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
-    parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
-    parser.add_argument("--learning_rate", type=int, default=1e-3, help="Learning Rate")
+    parser.add_argument("--base_checkpoints_dir", type=str, default="./checkpoints/source", help="Base directory for source checkpoints")
+    parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning Rate")
     parser.add_argument("--seed", type=int, default=0, help="Random Seed")
     args = parser.parse_args()
+
+    dataset_name = os.path.basename(args.root.rstrip("/"))
+    results_dir = os.path.join(args.base_checkpoints_dir, dataset_name)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     lr = args.learning_rate
 
-    os.makedirs(args.results_dir, exist_ok=True)
-    ckpt_path = os.path.join(args.results_dir, "best_model.pt")
-    train_loss_path = os.path.join(args.results_dir, "train_loss.npy")
-    val_loss_path = os.path.join(args.results_dir, "val_loss.npy")
+    os.makedirs(results_dir, exist_ok=True)
+    ckpt_path = os.path.join(results_dir, "best_model.pt")
+    train_loss_path = os.path.join(results_dir, "train_loss.npy")
+    val_loss_path = os.path.join(results_dir, "val_loss.npy")
 
     dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)

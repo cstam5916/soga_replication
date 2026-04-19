@@ -8,6 +8,7 @@ from torch import nn
 from scripts.models import GCN
 from scripts.DomainData import DomainData
 from scripts.losses import SOGALoss
+from scripts.utils import parse_mode
 
 
 def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, acc: float):
@@ -40,32 +41,40 @@ def macro_f1(logits: torch.Tensor, y: torch.Tensor) -> float:
     return sum(f1s) / len(f1s)
 
 
+
 def main():
-    parser = argparse.ArgumentParser(description="GCN node classification (PyG)")
-    parser.add_argument("--root", type=str, default="./data/acm", help="Dataset root/cache directory")
+    parser = argparse.ArgumentParser(description="GCN transfer (PyG)")
+    parser.add_argument("--root", type=str, default="./data/dblp", help="Target dataset root/cache directory")
     parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
-    # parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=100, help="Max training epochs")
-    parser.add_argument("--source_model", type=str, default="./checkpoints/dblp_gcn_exact", help="Source model")
-    parser.add_argument("--results_dir", type=str, default="./checkpoints/acm_gcn", help="Directory to save outputs")
+    parser.add_argument("--source_model", type=str, default="./checkpoints/source/acm", help="Source model checkpoint directory")
+    parser.add_argument("--base_checkpoints_dir", type=str, default="./checkpoints", help="Base directory for model checkpoints")
     parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning Rate")
     parser.add_argument("--seed", type=int, default=0, help="Random Seed")
-    parser.add_argument("--mode", type=str, default='SOGA', help='SOGA, IMOnly, or SCOnly')
-    parser.add_argument("--freeze_after", type=int, default=-1, help='layer to freeze weights after. default -1 <=> no freezing')
+    parser.add_argument(
+        "--mode", type=str, default="SSFUG_SOGA_Role2Vec",
+        help="ALGOTYPE_VARIANT_EMBEDMODE, e.g. SSFUG_SOGA_Role2Vec, SSFUG_IMOnly_Struc2Vec",
+    )
+    parser.add_argument("--freeze_after", type=int, default=-1, help="Layer to freeze weights after. -1 = no freezing")
     args = parser.parse_args()
+
+    algo_type, variant, embed_mode = parse_mode(args.mode)
+
+    target_name = os.path.basename(args.root.rstrip("/"))
+    source_name = os.path.basename(args.source_model.rstrip("/"))
+    transfer_dir = f"{source_name}_to_{target_name}"
+    checkpoints_dir = os.path.join(args.base_checkpoints_dir, algo_type, transfer_dir, args.mode)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     lr = args.learning_rate
     weight_decay = 5e-4
 
-    results_dir = os.path.join(args.results_dir)
-
-    os.makedirs(results_dir, exist_ok=True)
-    ckpt_path = os.path.join(results_dir, "best_model.pt")
-    loss_path = os.path.join(results_dir, "loss.npy")
-    acc_path = os.path.join(results_dir, "acc.npy")
-    pretrained_results_path = os.path.join(results_dir, "pretrained_results.txt")
+    os.makedirs(checkpoints_dir, exist_ok=True)
+    ckpt_path = os.path.join(checkpoints_dir, "best_model.pt")
+    loss_path = os.path.join(checkpoints_dir, "loss.npy")
+    acc_path = os.path.join(checkpoints_dir, "acc.npy")
+    pretrained_results_path = os.path.join(checkpoints_dir, "pretrained_results.txt")
 
     dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
@@ -97,7 +106,7 @@ def main():
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(trainable_params, lr=lr)
 
-    criterion = SOGALoss(data, mode=args.mode).to(device)
+    criterion = SOGALoss(data, mode=variant, embed_mode=embed_mode).to(device)
 
     model.eval()
     out = model(data)

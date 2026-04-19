@@ -26,6 +26,41 @@ A .sh file with the following scripts run in sequence is provided in `replicate.
 3. Generating plots for the train/validation F1 scores for each adaptation direction.
 After running the scripts, models and training logs will be saved in the `checkpoints` directory. Plots will be saved as `.svg` files in the `results` directory alongisde a .txt file with the best F1-scores on each task. Precomputed results are also given.
 
+## Creating Scripts
+The `train_source.sh` and `train_transfer.sh` shell scripts are provided as convenient, editable entry points for running training locally. Edit the variables at the top of each file to configure a run, then execute with `bash <script>.sh`.
+
+**`train_source.sh`** runs `scripts/train.py`, which trains a source GCN checkpoint. Available arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `--root` | `data/acm` | Path to the source dataset (`data/acm` or `data/dblp`) |
+| `--epochs` | `200` | Number of training epochs |
+| `--learning_rate` | `1e-3` | Adam learning rate |
+| `--seed` | `0` | Random seed for train/val split |
+| `--base_checkpoints_dir` | `checkpoints/source` | Base directory under which the checkpoint folder is created |
+
+The output directory is derived automatically as `{base_checkpoints_dir}/{dataset}`, e.g. `checkpoints/source/acm`.
+
+**`train_transfer.sh`** runs `scripts/train_transfer.py`, which fine-tunes a source checkpoint on a target dataset. Available arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `--root` | `data/dblp` | Path to the target dataset (`data/acm` or `data/dblp`) |
+| `--source_model` | `checkpoints/source/acm` | Path to the source model checkpoint directory |
+| `--mode` | `SSFUG_SOGA_Role2Vec` | Algorithm type, variant, and embedding model (see below) |
+| `--epochs` | `100` | Number of fine-tuning epochs |
+| `--learning_rate` | `1e-3` | Adam learning rate |
+| `--seed` | `0` | Random seed |
+| `--freeze_after` | `-1` | Freeze GCN layers up to this index; `-1` disables freezing |
+| `--base_results_dir` | `results` | Base directory under which results are saved |
+
+The output directory is derived automatically as `{base_results_dir}/{algo_type}/{source}_to_{target}/{mode}`, e.g. `results/SSFUG/acm_to_dblp/SSFUG_SOGA_Role2Vec`.
+
+The `--mode` argument encodes three choices as `ALGOTYPE_VARIANT_EMBEDMODE`:
+- **Algorithm type**: `SSFUG` (others are not yet implemented)
+- **Variant**: `SOGA`, `IMOnly`, `SCOnly`
+- **Embedding model**: `Role2Vec`, `Struc2Vec`
+
 ## Technical discrepancies in this implementation
 1. The original publication was not completely exhaustive in its description of the graph convolutional network used. For example, it is unclear whether the architecture in their implementation included layers like batch/layernorm, or whether linear or convolutional layers were used for projection between the input/output dimensions and the hidden dimension. Because performance is sensitive with respect to architectural choices, we believe this is the primary explanation for differences in zero-shot performance between this implementation and the paper's.
     - Note (for instructors & classmates): An additional hidden layer was added between the in-class presentation for CMPSC 292F on 3/10/2026 and the final version of this code. This has led to plots that more closely resemble those presented in the SOGA paper, but differ from those seen in that presentation.

@@ -15,4 +15,4 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-local*
+local_test_freeze.sh

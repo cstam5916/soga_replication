@@ -1,8 +1,13 @@
+import sys
+import os
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torch_geometric.utils import to_networkx, to_dense_adj
 from karateclub import Role2Vec
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'GraphEmbedding'))
+from ge.models import Struc2Vec
 
 class SOGALoss(nn.Module):
     def __init__(
@@ -12,6 +17,7 @@ class SOGALoss(nn.Module):
         lambda_local=1.0,
         lambda_role=0.5,
         role_k=None,
+        embed_mode='Role2Vec',
     ):
         super().__init__()
         self.mode = mode
@@ -35,10 +41,19 @@ class SOGALoss(nn.Module):
 
             if (self.mode != "IMOnly"):
                 G = to_networkx(graph, to_undirected=True)
-                r2v_model = Role2Vec(dimensions=64, walk_number=10, walk_length=80)
-                print("Fitting Role2Vec...")
-                r2v_model.fit(G)
-                emb = torch.tensor(r2v_model.get_embedding(), dtype=torch.float)
+                if embed_mode == 'Struc2Vec':
+                    print("Fitting Struc2Vec...")
+                    s2v_model = Struc2Vec(G, walk_length=10, num_walks=80, workers=1, verbose=0)
+                    s2v_model.train(embed_size=64)
+                    emb_dict = s2v_model.get_embeddings()
+                    emb = torch.tensor(
+                        [emb_dict[i] for i in range(num_nodes)], dtype=torch.float
+                    )
+                else:
+                    r2v_model = Role2Vec(dimensions=64, walk_number=10, walk_length=80)
+                    print("Fitting Role2Vec...")
+                    r2v_model.fit(G)
+                    emb = torch.tensor(r2v_model.get_embedding(), dtype=torch.float)
                 emb = F.normalize(emb, p=2, dim=1)
                 sim = emb @ emb.T
                 
