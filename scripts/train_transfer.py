@@ -8,7 +8,7 @@ from torch import nn
 from scripts.models import GCN
 from scripts.DomainData import DomainData
 from scripts.losses import SOGALoss
-from scripts.utils import parse_mode
+from scripts.utils import parse_mode, tee, save_training_plots
 
 
 def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, acc: float):
@@ -74,7 +74,10 @@ def main():
     ckpt_path = os.path.join(checkpoints_dir, "best_model.pt")
     loss_path = os.path.join(checkpoints_dir, "loss.npy")
     acc_path = os.path.join(checkpoints_dir, "acc.npy")
-    pretrained_results_path = os.path.join(checkpoints_dir, "pretrained_results.txt")
+    log_path = os.path.join(checkpoints_dir, "training_log.txt")
+    plot_path = os.path.join(checkpoints_dir, "training_plots.svg")
+
+    open(log_path, "w").close()  # clear/create log file
 
     dataset = DomainData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
@@ -118,9 +121,7 @@ def main():
         f"loss: {pretrained_loss:.4f}\n"
         f"f1: {pretrained_acc:.4f}\n"
     )
-    print(pretrained_results, end="")
-    with open(pretrained_results_path, "w") as f:
-        f.write(pretrained_results)
+    tee(log_path, pretrained_results, end="")
 
     best_acc = -1.0
     best_epoch = -1
@@ -153,13 +154,16 @@ def main():
             save_checkpoint(ckpt_path, model, optimizer, epoch, acc)
 
         if epoch == 1 or epoch % 10 == 0 or epoch == args.epochs:
-            print(
+            tee(
+                log_path,
                 f"Epoch {epoch:04d} | loss {loss.item():.4f} | "
                 f"f1 {acc:.4f} | best_f1 {best_acc:.4f} @ {best_epoch}"
             )
 
-    print(f"Done. Best checkpoint saved to: {ckpt_path} (best f1={best_acc:.4f} at epoch {best_epoch})")
-    print(f"Saved logs to: {loss_path} and {acc_path}")
+    save_training_plots(losses, accs, plot_path)
+    tee(log_path, f"Done. Best checkpoint saved to: {ckpt_path} (best f1={best_acc:.4f} at epoch {best_epoch})")
+    tee(log_path, f"Saved logs to: {loss_path} and {acc_path}")
+    tee(log_path, f"Saved plot to: {plot_path}")
 
 
 if __name__ == "__main__":

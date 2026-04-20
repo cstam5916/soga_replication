@@ -43,8 +43,8 @@ class SOGALoss(nn.Module):
                 G = to_networkx(graph, to_undirected=True)
                 if embed_mode == 'Struc2Vec':
                     print("Fitting Struc2Vec...")
-                    s2v_model = Struc2Vec(G, walk_length=10, num_walks=80, workers=1, verbose=0)
-                    s2v_model.train(embed_size=64)
+                    s2v_model = Struc2Vec(G)
+                    s2v_model.train()
                     emb_dict = s2v_model.get_embeddings()
                     emb = torch.tensor(
                         [emb_dict[i] for i in range(num_nodes)], dtype=torch.float

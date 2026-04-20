@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --job-name=multi_train_transfer
+#SBATCH --output=logs/multi_train_transfer_%j.out
+#SBATCH --error=logs/multi_train_transfer_%j.err
 # ---------------------------------------------------------------------------
 # multi_train_transfer.sh — run all implemented algo/dataset combinations
 # Requires source checkpoints at checkpoints/source/acm and checkpoints/source/dblp

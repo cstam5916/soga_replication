@@ -16,3 +16,5 @@ __pycache__/
 *$py.class
 
 local_test_freeze.sh
+
+logs

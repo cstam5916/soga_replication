@@ -1,5 +1,9 @@
 import warnings
 
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 _SSFUG_VARIANTS = {"SOGA", "IMOnly", "SCOnly"}
 _ALGO_TYPES = {"SSFUG", "MSFUG", "MSSG", "MSFU"}
 _EMBEDMODE_UNUSED_VARIANTS = {"IMOnly"}
@@ -27,3 +31,29 @@ def parse_mode(mode: str):
         embed_mode = None
 
     return algo_type, variant, embed_mode
+
+
+def tee(log_path: str, msg: str, end: str = "\n"):
+    print(msg, end=end)
+    with open(log_path, "a") as f:
+        f.write(msg + end)
+
+
+def save_training_plots(losses: list, accs: list, out_path: str):
+    sns.set_theme()
+    epochs = range(1, len(losses) + 1)
+    fig, (ax_loss, ax_f1) = plt.subplots(1, 2, figsize=(10, 4))
+
+    ax_loss.plot(epochs, losses)
+    ax_loss.set_title("Training Loss")
+    ax_loss.set_xlabel("Epoch")
+    ax_loss.set_ylabel("Loss")
+
+    ax_f1.plot(epochs, accs)
+    ax_f1.set_title("F1 Score")
+    ax_f1.set_xlabel("Epoch")
+    ax_f1.set_ylabel("F1 Score")
+
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
