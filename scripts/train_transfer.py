@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from scripts.models import GCN
-from scripts.DomainData import DomainData
+from scripts.data.CitationsData import CitationsData
 from scripts.losses import SOGALoss
 from scripts.utils import parse_mode, tee, save_training_plots
 
@@ -79,7 +79,7 @@ def main():
 
     open(log_path, "w").close()  # clear/create log file
 
-    dataset = DomainData(args.root, args.root.split("/")[-1])
+    dataset = CitationsData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
 
     required = ["x", "edge_index", "y"]

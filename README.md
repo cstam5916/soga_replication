@@ -15,6 +15,8 @@ pip install -r requirements/requirements.txt --override requirements/override.tx
 ```
 If any additional problems with dependencies arise, we recommend using the [uv package manager](https://docs.astral.sh/uv/) for environment setup.
 
+# TODO: Add GraphEmbedding requirements tensorflow and the related package (check Struc2Vec implementation for details), also add requirement ogb for proteins
+
 ## Dataset Acquisition
 The datasets used in this projects are the preprocessed versions of the ACMv8 and DBLPv9 datasets from the paper [Unsupervised Domain Adaptive Graph Convolutional Networks](https://dl.acm.org/doi/pdf/10.1145/3366423.3380219) ([Github](https://github.com/TrustAGI-Lab/UDAGCN/tree/master)) and can be accessed at [this Google Drive link](https://drive.google.com/file/d/1DzQ3QN9yjQxU4vtYkXyCiJKFw7oCCPSM/view?usp=sharing). Please download the datasets inside of the `data` directory.
 

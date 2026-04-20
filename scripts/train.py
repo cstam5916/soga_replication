@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from scripts.models import GCN
-from scripts.DomainData import DomainData
+from scripts.data.CitationsData import CitationsData
 
 
 def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, val_acc: float):
@@ -64,7 +64,7 @@ def main():
     train_loss_path = os.path.join(results_dir, "train_loss.npy")
     val_loss_path = os.path.join(results_dir, "val_loss.npy")
 
-    dataset = DomainData(args.root, args.root.split("/")[-1])
+    dataset = CitationsData(args.root, args.root.split("/")[-1])
     data = dataset[0].to(device)
 
     # overwrite masks with random 4:1 train/val split

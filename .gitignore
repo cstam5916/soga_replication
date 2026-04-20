@@ -1,5 +1,6 @@
 data/acm/
 data/dblp/
+dataset/*
 checkpoints/*
 deprecated_checkpoints
 *.ipynb
@@ -8,6 +9,7 @@ GraphEmbedding
 results/acm_to_dblp*
 results/dblp_to_acm*
 results/best_accuracies*
+temp*
 
 scripts/check_zero_shot.py
 
