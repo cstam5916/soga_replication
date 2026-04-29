@@ -4,7 +4,7 @@ import torch
 import torch_geometric.transforms as T
 from ogb.nodeproppred import PygNodePropPredDataset
 
-class PygOgbnProteins(PygNodePropPredDataset):
+class ProteinsData(PygNodePropPredDataset):
     def __init__(self, meta_csv = None):
         root, name, transform = '/kaggle/input', 'ogbn-proteins', T.ToSparseTensor()
         if meta_csv is None:

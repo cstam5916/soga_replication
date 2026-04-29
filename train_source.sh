@@ -4,7 +4,7 @@
 # Edit the variables below, then run:  bash local_train_source.sh
 # ---------------------------------------------------------------------------
 
-ROOT="data/dblp"
+ROOT="dataset/Citationv1"
 EPOCHS=200
 LR=1e-3
 SEED=0

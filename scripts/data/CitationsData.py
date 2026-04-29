@@ -39,9 +39,7 @@ class CitationsData(InMemoryDataset):
                  pre_filter=None):
         self.name = name
         super(CitationsData, self).__init__(root, transform, pre_transform, pre_filter)
-
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
-
 
     @property
     def raw_file_names(self):
@@ -55,7 +53,6 @@ class CitationsData(InMemoryDataset):
         pass
 
     def process(self):
-
         edge_path = osp.join(self.raw_dir, '{}_edgelist.txt'.format(self.name))
         edge_index = read_txt_array(edge_path, sep=',', dtype=torch.long).t()
 
@@ -108,3 +105,4 @@ class CitationsData(InMemoryDataset):
         data, slices = self.collate([data])
 
         torch.save((data, slices), self.processed_paths[0])
+

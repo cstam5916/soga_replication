@@ -20,3 +20,5 @@ __pycache__/
 local_test_freeze.sh
 
 logs
+GraphATA
+temp*

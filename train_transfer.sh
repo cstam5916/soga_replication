@@ -4,7 +4,7 @@
 # Edit the variables below, then run:  bash local_train_transfer.sh
 # ---------------------------------------------------------------------------
 
-ROOT="data/dblp"
+ROOT="dataset/dblp"
 SOURCE_MODEL="checkpoints/source/acm"
 MODE="SSFUG_IMOnly"   # ALGOTYPE_VARIANT_EMBEDMODE
 EPOCHS=100

@@ -124,3 +124,53 @@ class SOGALoss(nn.Module):
         role_loss = self._pairwise_bce_from_indicator(probs, self.P_role)
 
         return self.lambda_local * local_loss + self.lambda_role * role_loss
+
+
+class GraphATALoss(nn.Module):
+    """IM + KNN pseudo-label loss for GraphATA target adaptation.
+
+    Maintains momentum memory banks for node features and soft predictions.
+    Call forward() during the training step and update_memory() during the
+    eval step (matching GraphATA's original two-pass-per-epoch structure).
+
+    Args:
+        num_nodes: Number of nodes in the target graph.
+        nhid: Feature dimension output by the model's feat_bottleneck.
+        num_classes: Number of output classes.
+        K: Number of nearest neighbours used for pseudo-label voting.
+        momentum: EMA coefficient for memory bank updates (higher = faster update).
+    """
+    def __init__(self, num_nodes, nhid, num_classes, K=40, momentum=0.9):
+        super().__init__()
+        self.K = K
+        self.momentum = momentum
+        self.register_buffer("mem_fea", torch.rand(num_nodes, nhid))
+        self.register_buffer("mem_cls", torch.ones(num_nodes, num_classes) / num_classes)
+
+    def forward(self, feat_output, cls_output):
+        softmax_out = F.softmax(cls_output, dim=1)
+
+        # Information maximisation: minimise conditional entropy, maximise marginal entropy
+        entropy_loss = torch.mean(-(softmax_out * torch.log(softmax_out + 1e-5)).sum(dim=1))
+        mean_softmax = softmax_out.mean(dim=0)
+        div_loss = torch.sum(mean_softmax * torch.log(mean_softmax + 1e-5))
+        im_loss = entropy_loss + div_loss
+
+        # KNN pseudo-label cross-entropy using memory bank
+        feat_norm = F.normalize(feat_output, dim=1)
+        mem_norm = F.normalize(self.mem_fea, dim=1)
+        _, idx_near = torch.topk(feat_norm @ mem_norm.T, k=self.K + 1, dim=-1, largest=True)
+        idx_near = idx_near[:, 1:]  # exclude self
+        preds = self.mem_cls[idx_near].mean(dim=1).argmax(dim=1)
+        cls_loss = F.cross_entropy(cls_output, preds)
+
+        return im_loss + cls_loss
+
+    @torch.no_grad()
+    def update_memory(self, feat_output, cls_output):
+        """EMA update of memory banks. Call in eval mode after each epoch."""
+        softmax_out = F.softmax(cls_output, dim=1)
+        # Sharpened target distribution (squared-normalised softmax)
+        outputs_target = softmax_out ** 2 / (softmax_out ** 2).sum(dim=0)
+        self.mem_cls = (1.0 - self.momentum) * self.mem_cls + self.momentum * outputs_target
+        self.mem_fea = (1.0 - self.momentum) * self.mem_fea + self.momentum * feat_output

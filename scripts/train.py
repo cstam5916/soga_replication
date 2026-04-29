@@ -7,6 +7,7 @@ from torch import nn
 
 from scripts.models import GCN
 from scripts.data.CitationsData import CitationsData
+from scripts.utils import macro_f1, accuracy
 
 
 def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, val_acc: float):
@@ -22,28 +23,10 @@ def save_checkpoint(path: str, model: nn.Module, optimizer: torch.optim.Optimize
     )
 
 
-@torch.no_grad()
-def macro_f1(logits: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> float:
-    pred = logits.argmax(dim=1)
-    pred = pred[mask]
-    y = y[mask]
-    if pred.numel() == 0:
-        return 0.0
-    num_classes = int(max(pred.max().item(), y.max().item())) + 1
-    f1s = []
-    for c in range(num_classes):
-        tp = ((pred == c) & (y == c)).sum().item()
-        fp = ((pred == c) & (y != c)).sum().item()
-        fn = ((pred != c) & (y == c)).sum().item()
-        denom = 2 * tp + fp + fn
-        f1 = 0.0 if denom == 0 else (2 * tp) / denom
-        f1s.append(f1)
-    return sum(f1s) / len(f1s)
-
 
 def main():
     parser = argparse.ArgumentParser(description="GCN node classification (PyG)")
-    parser.add_argument("--root", type=str, default="./data/acm", help="Dataset root/cache directory")
+    parser.add_argument("--root", type=str, default="./dataset/acm", help="Dataset root/cache directory")
     # parser.add_argument("--hidden", type=int, default=64, help="Hidden dimension")
     parser.add_argument("--layers", type=int, default=3, help="Number of GCNConv layers (after linear_in)")
     parser.add_argument("--epochs", type=int, default=200, help="Max training epochs")
@@ -64,8 +47,12 @@ def main():
     train_loss_path = os.path.join(results_dir, "train_loss.npy")
     val_loss_path = os.path.join(results_dir, "val_loss.npy")
 
-    dataset = CitationsData(args.root, args.root.split("/")[-1])
-    data = dataset[0].to(device)
+    if dataset_name in ('acm', 'dblp', 'DBLPv7', 'ACMv9', 'Citationv1'):
+        data = CitationsData(args.root, dataset_name)[0].to(device)
+    elif 'ogbn_proteins_multi' in args.root:
+        data = torch.load(args.root).to(device)
+    else:
+        raise ValueError(f"Unrecognized dataset: {dataset_name!r}")
 
     # overwrite masks with random 4:1 train/val split
     torch.manual_seed(args.seed)
@@ -111,8 +98,10 @@ def main():
 
         model.eval()
         out = model(data)
-        train_acc = macro_f1(out, data.y, data.train_mask)
-        val_acc = macro_f1(out, data.y, data.val_mask)
+        train_f1 = macro_f1(out, data.y, data.train_mask)
+        val_f1 = macro_f1(out, data.y, data.val_mask)
+        train_acc = accuracy(out, data.y, data.train_mask)
+        val_acc = accuracy(out, data.y, data.val_mask)
 
         train_losses.append(float(train_loss.item()))
         val_loss = float(criterion(out[data.val_mask], data.y[data.val_mask]).item())
@@ -121,19 +110,20 @@ def main():
         np.save(train_loss_path, np.array(train_losses, dtype=np.float32))
         np.save(val_loss_path, np.array(val_losses, dtype=np.float32))
 
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        if val_f1 > best_val_acc:
+            best_val_acc = val_f1
             best_epoch = epoch
-            save_checkpoint(ckpt_path, model, optimizer, epoch, val_acc)
+            save_checkpoint(ckpt_path, model, optimizer, epoch, val_f1)
 
         if epoch == 1 or epoch % 10 == 0 or epoch == args.epochs:
             print(
                 f"Epoch {epoch:04d} | loss {train_loss.item():.4f} | "
-                f"train {train_acc:.4f} | val {val_acc:.4f} | "
-                f"best_val {best_val_acc:.4f} @ {best_epoch}"
+                f"train_f1 {train_f1:.4f} | train_acc {train_acc:.4f} | "
+                f"val_f1 {val_f1:.4f} | val_acc {val_acc:.4f} | "
+                f"best_val_f1 {best_val_acc:.4f} @ {best_epoch}"
             )
 
-    print(f"Done. Best checkpoint saved to: {ckpt_path} (best val_acc={best_val_acc:.4f} at epoch {best_epoch})")
+    print(f"Done. Best checkpoint saved to: {ckpt_path} (best val_f1={best_val_acc:.4f} at epoch {best_epoch})")
     print(f"Saved loss logs to: {train_loss_path} and {val_loss_path}")
 
 

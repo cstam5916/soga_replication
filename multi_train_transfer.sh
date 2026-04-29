@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=02:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=multi_train_transfer
 #SBATCH --output=logs/multi_train_transfer_%j.out
 #SBATCH --error=logs/multi_train_transfer_%j.err
@@ -19,35 +19,23 @@ LR=1e-3
 SEED=0
 FREEZE_AFTER=-1
 
-EMBED_VARIANTS=("SOGA" "SCOnly")
-NONEMBED_VARIANTS=("IMOnly")
-EMBED_MODES=("Role2Vec" "Struc2Vec")
+EMBED_MODES=("Struc2Vec")
 
 TRANSFERS=(
-    "data/dblp checkpoints/source/acm"
-    "data/acm  checkpoints/source/dblp"
+    "dataset/DBLPv7      checkpoints/source/ACMv9"
+    "dataset/Citationv1  checkpoints/source/ACMv9"
+    "dataset/ACMv9       checkpoints/source/DBLPv7"
+    "dataset/Citationv1  checkpoints/source/DBLPv7"
+    "dataset/ACMv9       checkpoints/source/Citationv1"
+    "dataset/DBLPv7      checkpoints/source/Citationv1"
 )
 
 # ---------------------------------------------------------------------------
 
 for TRANSFER in "${TRANSFERS[@]}"; do
     read -r ROOT SOURCE_MODEL <<< "$TRANSFER"
-    for VARIANT in "${EMBED_VARIANTS[@]}"; do
-        for EMBED_MODE in "${EMBED_MODES[@]}"; do
-            MODE="SSFUG_${VARIANT}_${EMBED_MODE}"
-            echo "=== $MODE | source=$(basename $SOURCE_MODEL) -> target=$(basename $ROOT) ==="
-            python -m scripts.train_transfer \
-                --root                 "$ROOT" \
-                --source_model         "$SOURCE_MODEL" \
-                --mode                 "$MODE" \
-                --epochs               "$EPOCHS" \
-                --learning_rate        "$LR" \
-                --seed                 "$SEED" \
-                --freeze_after         "$FREEZE_AFTER"
-        done
-    done
-    for VARIANT in "${NONEMBED_VARIANTS[@]}"; do
-        MODE="SSFUG_${VARIANT}"
+    for EMBED_MODE in "${EMBED_MODES[@]}"; do
+        MODE="SSFUG_SOGA_${EMBED_MODE}"
         echo "=== $MODE | source=$(basename $SOURCE_MODEL) -> target=$(basename $ROOT) ==="
         python -m scripts.train_transfer \
             --root                 "$ROOT" \
